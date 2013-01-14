@@ -1,6 +1,6 @@
 /*
   mysqldump to tsv flex filter
-  
+
   To generate c code: flex -Cf -8 mysql.flex
   To compile c code: gcc lex.yy.c -lfl -o mysqlparse
   To run: ./mysqlparse <inputfile> <outputfile>
@@ -19,24 +19,84 @@
 #include <stdio.h>
 #include <string.h>
 #define MAX_TABLENAME_LEN 128
+#define MAX_COLUMNNAME_LEN 64
 #define MAX_PATH_LEN 2048
 %}
 
   int row_count = 0;
   char prevtablename[MAX_TABLENAME_LEN] = {0};
   char tablename[MAX_TABLENAME_LEN] = {0};
+  char columnname[MAX_COLUMNNAME_LEN] = {0};
   char pathprefix[MAX_PATH_LEN] = {0};
   char outputpath[MAX_PATH_LEN] = {0};
   enum output_types {OT_TABLENAME, OT_FILENAME, OT_STDOUT} output_type = OT_TABLENAME;
 
+%x INSCHEMA
+%x INCOLUMNNAME
 %x INTABLE
 %x INROW
 %x INSTRING
 
 WS  [[:space:]]
+SCHEMASTART  CREATE{WS}+TABLE{WS}+`[^`]+`{WS}+"("
+SCHEMACOL  `[^`][^,]
 TABLESTART  INSERT{WS}+INTO{WS}*`[^`]+`{WS}*VALUES{WS}*
 
 %%
+
+{SCHEMASTART}  {
+    BEGIN(INSCHEMA);
+
+    /* Load table name. */
+    char* startPos = strchr(yytext, '`') + 1;
+    char* endPos = strchr(startPos, '`');
+    *endPos = 0;
+    strncpy(tablename, startPos, MAX_TABLENAME_LEN);
+    tablename[MAX_TABLENAME_LEN - 1] = 0;
+
+    /* Clean state from previous table, and prepare for current one. */
+    if (strcmp(tablename, prevtablename) != 0) {
+      /* This is a new table. */
+
+      if (row_count > 0) {
+        /* Rows were written in the previous table. */
+        fprintf(stderr, " Row count = %d\n", row_count);
+        row_count = 0;
+        if (output_type == OT_TABLENAME) fclose(yyout);
+      }
+
+      /* Store current table name, for checking next time around. */
+      strcpy(prevtablename, tablename);
+
+      /* Open output file with name based on tablename. */
+      if (output_type == OT_TABLENAME) {
+        strcpy(outputpath, pathprefix);
+        outputpath[MAX_PATH_LEN - (strlen(tablename) + 5)] = 0;
+        strcat(outputpath, tablename);
+        strcat(outputpath, ".tsv");
+        yyout = fopen(outputpath, "wb");
+      }
+
+      /* Indicate we're processing a new table. */
+      fprintf(stderr, "%s\n", tablename);
+    }
+  }
+
+<INSCHEMA>{
+  ` BEGIN(INCOLUMNNAME);
+  , fprintf(yyout, "\t");
+  ; {
+    fprintf(yyout, "\n");
+    BEGIN(INITIAL);
+    }
+  .
+  \n
+  }
+
+<INCOLUMNNAME>{
+  [^`]+ ECHO;
+  ` BEGIN(INSCHEMA);
+  }
 
 {TABLESTART}  {
     BEGIN(INTABLE);
