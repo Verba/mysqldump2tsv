@@ -38,7 +38,7 @@
 %x INSTRING
 
 WS  [[:space:]]
-SCHEMASTART  CREATE{WS}+TABLE{WS}+`[^`]+`{WS}+"("
+SCHEMASTART  CREATE{WS}+TABLE{WS}+`[^`]+`{WS}+"(""\n"
 SCHEMACOL  `[^`][^,]
 TABLESTART  INSERT{WS}+INTO{WS}*`[^`]+`{WS}*VALUES{WS}*
 
@@ -84,7 +84,7 @@ TABLESTART  INSERT{WS}+INTO{WS}*`[^`]+`{WS}*VALUES{WS}*
 
 <INSCHEMA>{
   ` BEGIN(INCOLUMNNAME);
-  , fprintf(yyout, "\t");
+  ,$ fprintf(yyout, "\t");
   ; {
     fprintf(yyout, "\n");
     BEGIN(INITIAL);
