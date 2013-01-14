@@ -1,0 +1,1 @@
+This code was originally written by Bruce Myers and published at http://blog.brucemyers.com/dotclear/index.php?post/2012/03/01/Mysqldump-to-TSV-Conversion-Using-Flex&pub=0#pr. I modified it to output header lines.
