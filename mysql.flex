@@ -32,6 +32,7 @@
   enum output_types {OT_TABLENAME, OT_FILENAME, OT_STDOUT} output_type = OT_TABLENAME;
 
 %x INSCHEMA
+%x INSCHEMASTART
 %x INCOLUMNNAME
 %x INTABLE
 %x INROW
@@ -45,7 +46,7 @@ TABLESTART  INSERT{WS}+INTO{WS}*`[^`]+`{WS}*VALUES{WS}*
 %%
 
 {SCHEMASTART}  {
-    BEGIN(INSCHEMA);
+    BEGIN(INSCHEMASTART);
 
     /* Load table name. */
     char* startPos = strchr(yytext, '`') + 1;
@@ -82,9 +83,28 @@ TABLESTART  INSERT{WS}+INTO{WS}*`[^`]+`{WS}*VALUES{WS}*
     }
   }
 
+/* INSCHEMASTART is split out from INSCHEMA to simplify insertion of tabs.
+ *
+ * The complication comes when there are index statements mixed in with the
+ * column definitions; in that case the "," character can't simply be
+ * replaced by tabs, because that would generate extraneous tabs for each
+ * comma used to delimit an index definition from a column definition.
+ */
+<INSCHEMASTART>{
+  ^{WS}*` BEGIN(INCOLUMNNAME);
+  ; {
+    fprintf(yyout, "\n");
+    BEGIN(INITIAL);
+    }
+  .
+  \n
+  }
+
 <INSCHEMA>{
-  ` BEGIN(INCOLUMNNAME);
-  ,$ fprintf(yyout, "\t");
+  ^{WS}*` {
+    fprintf(yyout, "\t");
+    BEGIN(INCOLUMNNAME);
+    }
   ; {
     fprintf(yyout, "\n");
     BEGIN(INITIAL);
