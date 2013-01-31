@@ -1,8 +1,19 @@
+all: clean mysqlparse mysqlparse.noheader test
+
+clean:
+	rm *.c
+
 mysqlparse: lex.yy.c
 	gcc $< -lfl -o $@
 
 lex.yy.c: mysql.flex
 	flex -Cf -8 $<
+
+mysqlparse.noheader: lex.noheader.yy.c
+	gcc $< -lfl -o $@
+
+lex.noheader.yy.c: mysql.noheader.flex
+	flex -Cf -8 --outfile=$@ $<
 
 test_one_row_one_col: mysqlparse
 	./$< test/input/one_row_one_col.sql - 2> /dev/null | diff - test/expected/one_row_one_col.tsv
